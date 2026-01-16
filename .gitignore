@@ -1,0 +1,31 @@
+# PlatformIO build artifacts
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# IDE settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Build output
+*.bin
+*.elf
+*.hex
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor backup files
+*~
+*.swp
+*.swo
+*.bak
+
+# Local configuration (may contain WiFi credentials)
+src/config_local.h
+
+# Log files
+*.log

@@ -1,0 +1,13 @@
+# Partition table for X4 Games - Matches Papyrix exactly for compatibility
+# This ensures safe flashing that preserves NVS data and supports OTA
+# ============================================================================
+# IMPORTANT: This table matches the official Papyrix partition layout.
+# Bootloader is NOT included here - it remains untouched at 0x0-0x8FFF
+# ============================================================================
+# Name,     Type, SubType,  Offset,     Size,       Flags
+nvs,        data, nvs,      0x9000,     0x5000,
+otadata,    data, ota,      0xe000,     0x2000,
+app0,       app,  ota_0,    0x10000,    0x640000,
+app1,       app,  ota_1,    0x650000,   0x640000,
+spiffs,     data, spiffs,   0xc90000,   0x360000,
+coredump,   data, coredump, 0xff0000,   0x10000,
