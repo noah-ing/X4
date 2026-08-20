@@ -8,12 +8,8 @@
 // Custom SPI instance for display
 SPIClass displaySPI(FSPI);
 
-// Initialize the GxEPD2 display with custom SPI pins
-GxEPD2_BW<GxEPD2_426_GDEQ0426T82, GxEPD2_426_GDEQ0426T82::HEIGHT> createDisplay() {
-    return GxEPD2_BW<GxEPD2_426_GDEQ0426T82, GxEPD2_426_GDEQ0426T82::HEIGHT>(
-        GxEPD2_426_GDEQ0426T82(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)
-    );
-}
+Display::Display()
+    : epd(GxEPD2_426_GDEQ0426T82(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
 
 Display display;
 

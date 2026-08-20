@@ -1,8 +1,8 @@
-# Partition table for X4 Games - Matches Papyrix exactly for compatibility
-# This ensures safe flashing that preserves NVS data and supports OTA
+# Partition table used by this X4 firmware, based on the Papyrix layout.
+# Verify these offsets against the exact device revision before flashing.
 # ============================================================================
-# IMPORTANT: This table matches the official Papyrix partition layout.
-# Bootloader is NOT included here - it remains untouched at 0x0-0x8FFF
+# This CSV does not contain a bootloader partition. Whether a flashing command
+# rewrites other regions depends on the command and image set used.
 # ============================================================================
 # Name,     Type, SubType,  Offset,     Size,       Flags
 nvs,        data, nvs,      0x9000,     0x5000,

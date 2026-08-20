@@ -1,11 +1,18 @@
 /**
- * Stock Portfolio Tracker - Enhanced Implementation
- * Full charts, sparklines, market indices, and more
+ * Experimental local holdings display with charts and market indices.
  */
 
 #include "apps/stocktracker.h"
+#include "yahoo_root_ca.h"
+#include <WiFiClientSecure.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
+
+namespace {
+constexpr time_t MIN_VALID_UNIX_TIME = 1700000000;
+constexpr int NTP_SYNC_ATTEMPTS = 20;
+}
 
 void StockTracker::init() {
     gameOver = false;
@@ -18,8 +25,7 @@ void StockTracker::init() {
     refreshing = false;
     lastRefresh = 0;
 
-    numHoldings = 0;
-    memset(holdings, 0, sizeof(holdings));
+    // Holdings are configured once during setup and must survive each launch.
     memset(indices, 0, sizeof(indices));
 
     // Setup market indices
@@ -42,6 +48,7 @@ void StockTracker::addHolding(const char* symbol, float shares, float costBasis)
     StockHolding& h = holdings[numHoldings];
     memset(&h, 0, sizeof(StockHolding));
     strncpy(h.symbol, symbol, sizeof(h.symbol) - 1);
+    h.symbol[sizeof(h.symbol) - 1] = '\0';
     h.shares = shares;
     h.costBasis = costBasis;
     h.valid = false;
@@ -51,13 +58,15 @@ void StockTracker::addHolding(const char* symbol, float shares, float costBasis)
 
 void StockTracker::setWiFi(const char* ssid, const char* password) {
     strncpy(wifiSSID, ssid, sizeof(wifiSSID) - 1);
+    wifiSSID[sizeof(wifiSSID) - 1] = '\0';
     strncpy(wifiPassword, password, sizeof(wifiPassword) - 1);
+    wifiPassword[sizeof(wifiPassword) - 1] = '\0';
 }
 
 bool StockTracker::connectWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
         wifiConnected = true;
-        return true;
+        return synchronizeClock();
     }
 
     if (strlen(wifiSSID) == 0) {
@@ -73,7 +82,20 @@ bool StockTracker::connectWiFi() {
     }
 
     wifiConnected = (WiFi.status() == WL_CONNECTED);
-    return wifiConnected;
+    return wifiConnected && synchronizeClock();
+}
+
+bool StockTracker::synchronizeClock() {
+    if (time(nullptr) >= MIN_VALID_UNIX_TIME) return true;
+
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    for (int attempt = 0; attempt < NTP_SYNC_ATTEMPTS; attempt++) {
+        if (time(nullptr) >= MIN_VALID_UNIX_TIME) return true;
+        delay(500);
+    }
+
+    wifiConnected = false;
+    return false;
 }
 
 void StockTracker::disconnectWiFi() {
@@ -107,19 +129,21 @@ void StockTracker::refreshAll() {
 bool StockTracker::fetchQuote(const char* symbol, StockHolding& holding) {
     if (!wifiConnected) return false;
 
-    HTTPClient http;
     char url[256];
     snprintf(url, sizeof(url),
              "https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=5d",
              symbol);
 
-    http.begin(url);
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(YAHOO_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(secureClient, url)) return false;
     http.addHeader("User-Agent", "X4Games/1.0");
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(8192);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
@@ -136,6 +160,7 @@ bool StockTracker::fetchQuote(const char* symbol, StockHolding& holding) {
             const char* shortName = meta["shortName"];
             if (shortName) {
                 strncpy(holding.name, shortName, sizeof(holding.name) - 1);
+                holding.name[sizeof(holding.name) - 1] = '\0';
             }
 
             holding.dayChange = holding.currentPrice - holding.previousClose;
@@ -155,19 +180,21 @@ bool StockTracker::fetchQuote(const char* symbol, StockHolding& holding) {
 bool StockTracker::fetchSparkline(const char* symbol, float* data, int& count) {
     if (!wifiConnected) return false;
 
-    HTTPClient http;
     char url[256];
     snprintf(url, sizeof(url),
              "https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1mo",
              symbol);
 
-    http.begin(url);
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(YAHOO_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(secureClient, url)) return false;
     http.addHeader("User-Agent", "X4Games/1.0");
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(16384);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
@@ -194,7 +221,6 @@ bool StockTracker::fetchSparkline(const char* symbol, float* data, int& count) {
 bool StockTracker::fetchHistory(const char* symbol, StockHolding& holding, ChartRange range) {
     if (!wifiConnected) return false;
 
-    HTTPClient http;
     char url[256];
     const char* rangeParam = getRangeParam(range);
     const char* interval = (range == ChartRange::DAY_1) ? "5m" :
@@ -204,13 +230,16 @@ bool StockTracker::fetchHistory(const char* symbol, StockHolding& holding, Chart
              "https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=%s&range=%s",
              symbol, interval, rangeParam);
 
-    http.begin(url);
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(YAHOO_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(secureClient, url)) return false;
     http.addHeader("User-Agent", "X4Games/1.0");
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(32768);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
@@ -224,8 +253,6 @@ bool StockTracker::fetchHistory(const char* symbol, StockHolding& holding, Chart
             JsonArray volumes = quote["volume"];
 
             holding.historyCount = 0;
-            int idx = 0;
-
             for (size_t i = 0; i < timestamps.size() && holding.historyCount < MAX_CHART_POINTS; i++) {
                 if (!closes[i].isNull()) {
                     PricePoint& p = holding.history[holding.historyCount];
@@ -251,19 +278,21 @@ bool StockTracker::fetchHistory(const char* symbol, StockHolding& holding, Chart
 bool StockTracker::fetchIndex(const char* symbol, MarketIndex& index) {
     if (!wifiConnected) return false;
 
-    HTTPClient http;
     char url[256];
     snprintf(url, sizeof(url),
              "https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1mo",
              symbol);
 
-    http.begin(url);
+    WiFiClientSecure secureClient;
+    secureClient.setCACert(YAHOO_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(secureClient, url)) return false;
     http.addHeader("User-Agent", "X4Games/1.0");
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK) {
         String payload = http.getString();
-        DynamicJsonDocument doc(16384);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
