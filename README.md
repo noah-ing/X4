@@ -1,6 +1,13 @@
-# X4 Games
+# X4 Games and Utilities
 
-A collection of classic games for the **Xteink X4** e-paper reader, designed to work safely alongside Papyrix firmware.
+Community firmware for classic games and small utilities on the **Xteink X4**
+e-paper reader. The project uses the Papyrix partition layout as a compatibility
+reference and provides an application image that can be written to the `app0`
+offset after the device layout has been verified.
+
+> **Status:** hardware-specific prototype. Back up the full device before
+> flashing and review `partitions.csv` against your exact hardware revision.
+> Compatibility and recovery are not guaranteed.
 
 ## Included Apps
 
@@ -16,7 +23,7 @@ A collection of classic games for the **Xteink X4** e-paper reader, designed to 
 ### Utilities
 | App | Description |
 |-----|-------------|
-| **Portfolio Tracker** | Stock/IRA portfolio monitor with real-time quotes via Yahoo Finance API |
+| **Portfolio Tracker** | Local holdings display using an unofficial Yahoo Finance quote endpoint |
 
 ## Hardware
 
@@ -27,13 +34,17 @@ This firmware is designed for the **Xteink X4**:
 
 ## Safety
 
-⚠️ **This firmware is designed to be SAFE:**
+The supplied configuration is intended to reduce flashing risk:
 
-- ✅ Uses the **exact same partition layout** as Papyrix
-- ✅ Does **NOT** touch the bootloader (0x0-0x8FFF)
-- ✅ Preserves NVS data (WiFi credentials, calibration)
-- ✅ Supports OTA with dual app partitions (failsafe)
-- ✅ Can coexist with Papyrix (flash to app0 partition)
+- It uses the documented Papyrix partition layout.
+- The built application image is intended for the `app0` offset at `0x10000`.
+- NVS is outside that application partition and is not rewritten by the manual
+  application-only command below.
+- Two application partitions are defined for OTA-capable builds.
+
+These properties describe the checked-in configuration; they are not a safety
+certification. A wrong device revision, flash size, offset, or interrupted write
+can still make the device unbootable.
 
 ### Partition Layout
 
@@ -58,8 +69,8 @@ coredump  data  coredump 0xff0000   0x10000   (64KB)  - Crash dumps
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/x4-games.git
-cd x4-games
+git clone https://github.com/noah-ing/X4.git
+cd X4
 
 # Build the firmware
 pio run
@@ -73,31 +84,28 @@ pio run -e xteink_x4_debug
 
 ## Flashing
 
-### Option 1: PlatformIO (Recommended)
+### Option 1: Application-only esptool command
 
 ```bash
-# Connect X4 via USB-C and flash
-pio run -t upload
-
-# Monitor serial output (optional, for debugging)
-pio device monitor
-```
-
-### Option 2: esptool (Manual)
-
-```bash
-# Flash only the app partition (safe, preserves bootloader/NVS)
+# Build first, then write only the application image to app0
 esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 460800 \
   write_flash -z 0x10000 .pio/build/xteink_x4/firmware.bin
 ```
 
-### Option 3: Papyrix Flasher
+Replace `/dev/ttyACM0` with the device port. This command is deliberately
+explicit: PlatformIO's standard ESP32 upload target can also write supporting
+images, so it is not the documented application-only path here.
+
+### Option 2: Papyrix Flasher
 
 If you have [papyrix-flasher](https://github.com/bigbag/papyrix-flasher) installed:
 
 ```bash
 papyrix-flasher flash .pio/build/xteink_x4/firmware.bin
 ```
+
+Confirm the flasher's offsets and backup behavior for the installed version
+before using it.
 
 ## ⚠️ Backup First!
 
@@ -164,28 +172,48 @@ esptool.py --chip esp32c3 --port /dev/ttyACM0 write_flash 0 backup.bin
 
 ## Configuring the Portfolio Tracker
 
-To track your IRA or stock portfolio, edit `src/main.cpp` and uncomment/add your holdings:
+Create the ignored local configuration file, then add only the values you want
+compiled into your device firmware:
 
-```cpp
-// In setup(), before gameMenu.addGame(&stockTracker):
-stockTracker.addHolding("VTI", 50.0, 10000.00);   // Symbol, shares, cost basis
-stockTracker.addHolding("VXUS", 30.0, 5000.00);
+```bash
+cp src/config_local.example.h src/config_local.h
 ```
 
-The tracker uses Yahoo Finance's unofficial API for real-time quotes. WiFi connection is required.
+```cpp
+inline void configureLocalPortfolio(StockTracker& tracker) {
+    tracker.setWiFi("YOUR_WIFI_SSID", "YOUR_WIFI_PASSWORD");
+    tracker.addHolding("VTI", 1.0F, 100.0F);  // symbol, shares, cost basis
+}
+```
+
+The tracker uses an unofficial Yahoo Finance endpoint for delayed or near-real-time
+quotes. That endpoint may change or become unavailable without notice. Wi-Fi is
+required; no API key is needed. Holdings and cost basis are compiled into the
+firmware. `src/config_local.h` is ignored by Git; keep credentials and personal
+portfolio values there and never force-add it to a commit.
+
+The tracker is an informational display, not investment advice, a broker, or a
+source of guaranteed market data.
+
+HTTPS requests validate the endpoint against the embedded DigiCert Global Root
+G2 certificate after the device clock is synchronized over NTP. If Yahoo changes
+its certificate chain, update the trusted root deliberately; do not replace this
+with an insecure TLS mode. The quote endpoint remains unofficial and should not
+be treated as an availability or data-quality guarantee.
 
 ## Development
 
 ### Project Structure
 
 ```
-x4-games/
+X4/
 ├── platformio.ini      # Build configuration
 ├── partitions.csv      # Flash partition table
 ├── include/
 │   ├── x4_hardware.h   # Pin definitions
 │   ├── display.h       # Display wrapper
 │   ├── input.h         # Button handling
+│   ├── yahoo_root_ca.h # Trusted root for the quote client
 │   ├── game.h          # Game base class
 │   ├── menu.h          # Game launcher
 │   ├── games/
@@ -198,6 +226,7 @@ x4-games/
 │       └── stocktracker.h
 └── src/
     ├── main.cpp        # Entry point
+    ├── config_local.example.h # Ignored local-config template
     ├── display.cpp
     ├── input.cpp
     ├── game.cpp
@@ -240,4 +269,6 @@ MIT License - See LICENSE file for details.
 
 ## Disclaimer
 
-This is a community project and is **not affiliated with Xteink**. Flash custom firmware at your own risk. Always backup your device before flashing.
+This is a community project and is **not affiliated with Xteink, Papyrix, or
+Yahoo**. Flash custom firmware at your own risk. Always back up your device
+before flashing.

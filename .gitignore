@@ -9,23 +9,21 @@
 *.sublime-project
 *.sublime-workspace
 
-# Build output
+# Device backups and compiled output
+backup.bin
 *.bin
 *.elf
 *.hex
+*.map
 
-# OS files
+# Local configuration (may contain Wi-Fi credentials)
+src/config_local.h
+
+# Editor, OS, and log files
 .DS_Store
 Thumbs.db
-
-# Editor backup files
 *~
 *.swp
 *.swo
 *.bak
-
-# Local configuration (may contain WiFi credentials)
-src/config_local.h
-
-# Log files
 *.log

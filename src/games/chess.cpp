@@ -703,7 +703,7 @@ void Chess::handlePromotion(int x, int y) {
 
 // Simple AI using minimax with alpha-beta pruning
 Move Chess::findBestMove(PieceColor color, int depth) {
-    Move bestMove = {{-1}, {-1}, {-1}, {-1}, Piece::EMPTY, false, -999999};
+    Move bestMove{-1, -1, -1, -1, Piece::EMPTY, false, -999999};
 
     for (int fy = 0; fy < 8; fy++) {
         for (int fx = 0; fx < 8; fx++) {

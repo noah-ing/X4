@@ -1,9 +1,9 @@
 /**
- * Stock Portfolio Tracker for X4 - Enhanced Edition
- * Full-featured stock/IRA portfolio monitoring with charts
+ * Experimental local holdings display for X4
+ * Charts and quotes are fetched from an unofficial Yahoo Finance endpoint.
  *
  * Features:
- * - Real-time quotes via Yahoo Finance API
+ * - Delayed or near-real-time quotes when the upstream endpoint is available
  * - Historical price charts (1D, 1W, 1M, 3M, 1Y)
  * - Sparkline mini-charts in list view
  * - Market indices (S&P 500, NASDAQ, DOW)
@@ -134,6 +134,7 @@ private:
 
     // API functions
     bool connectWiFi();
+    bool synchronizeClock();
     void disconnectWiFi();
     bool fetchQuote(const char* symbol, StockHolding& holding);
     bool fetchHistory(const char* symbol, StockHolding& holding, ChartRange range);

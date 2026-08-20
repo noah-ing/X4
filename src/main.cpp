@@ -4,10 +4,10 @@
  * A collection of games for the Xteink X4 e-paper reader
  * Compatible with Papyrix firmware partition layout
  *
- * SAFETY NOTES:
- * - This firmware uses the same partition layout as Papyrix
- * - Does NOT modify bootloader or NVS partitions
- * - Safe to flash alongside Papyrix (uses app0 partition)
+ * FLASHING NOTES:
+ * - The checked-in partition table follows the Papyrix layout
+ * - Back up the device and flash the application image at 0x10000
+ * - Verify the partition layout against the exact hardware revision first
  *
  * Controls:
  * - D-PAD: Navigate menus and game controls
@@ -17,6 +17,7 @@
  */
 
 #include <Arduino.h>
+#include <esp_sleep.h>
 #include "display.h"
 #include "input.h"
 #include "menu.h"
@@ -30,6 +31,12 @@
 
 // Include apps/utilities
 #include "apps/stocktracker.h"
+
+#if __has_include("config_local.h")
+#include "config_local.h"
+#else
+static void configureLocalPortfolio(StockTracker&) {}
+#endif
 
 // Game instances
 Chess chessGame;
@@ -108,10 +115,8 @@ void setup() {
     gameMenu.addGame(&game2048);
     gameMenu.addGame(&gameOfLife);
 
-    // Register apps/utilities
-    // Configure your stock portfolio before adding:
-    // stockTracker.addHolding("VTI", 50.0, 10000.00);
-    // stockTracker.addHolding("VXUS", 30.0, 5000.00);
+    // Register apps/utilities. Personal values live in the ignored local config.
+    configureLocalPortfolio(stockTracker);
     gameMenu.addGame(&stockTracker);
 
     Serial.println("Setup complete!");
@@ -146,7 +151,16 @@ void loop() {
         delay(2000);
 
         // Enter deep sleep - wake on power button
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_3, 0); // Wake on power button LOW
-        esp_deep_sleep_start();
+        const esp_err_t wakeStatus = esp_deep_sleep_enable_gpio_wakeup(
+            1ULL << BTN_POWER_PIN,
+            ESP_GPIO_WAKEUP_GPIO_LOW
+        );
+
+        if (wakeStatus == ESP_OK) {
+            esp_deep_sleep_start();
+        } else {
+            Serial.printf("Unable to configure power-button wake-up: %d\n", wakeStatus);
+            delay(1000);
+        }
     }
 }

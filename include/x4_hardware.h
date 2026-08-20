@@ -2,8 +2,8 @@
  * X4 Hardware Abstraction Layer
  * Pin definitions and hardware constants for the Xteink X4
  *
- * SAFE: This code only reads buttons and controls the display.
- * It does NOT modify bootloader, flash partitions, or system files.
+ * This header defines the display, button, SD-card, and battery-monitor pins.
+ * Confirm the pinout against the exact hardware revision before flashing.
  */
 
 #ifndef X4_HARDWARE_H
